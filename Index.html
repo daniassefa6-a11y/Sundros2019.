@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sundros2019 - የተማሪዎች አቴንዳንስ</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 650px; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .school-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .school-name { color: #007bff; font-size: 32px; font-weight: bold; margin: 0; text-transform: uppercase; }
+        .page-title { color: #555; font-size: 18px; margin: 5px 0 0 0; }
+        
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { flex: 1; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; }
+        .nav-btn.active { background: #007bff; }
+        
+        .form-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input[type="text"], input[type="date"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+        button { padding: 10px 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { opacity: 0.9; }
+        
+        .date-section { background: #e9ecef; padding: 12px; border-radius: 5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        .btn-delete { background-color: #dc3545; padding: 5px 10px; font-size: 12px; }
+        .status-checkbox { width: 20px; height: 20px; cursor: pointer; }
+        
+        .page-view { display: none; }
+        .page-view.active { display: block; }
+        .history-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .history-header h4 { margin: 0; color: #007bff; }
+        .expire-tag { font-size: 12px; background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="school-header">
+        <h1 class="school-name">Sundros2019</h1>
+        <p class="page-title">የተማሪዎች ዕለታዊ አቴንዳንስ መያዣ</p>
+    </div>
+
+    <div class="nav-buttons">
+        <button class="nav-btn active" id="btnToday" onclick="switchPage('today')">የዕለቱ ሊስት</button>
+        <button class="nav-btn" id="btnHistory" onclick="switchPage('history')">የቀደሙ ቀናት ታሪክ</button>
+    </div>
+
+    <!-- 1. ዋና የአቴንዳንስ ገጽ -->
+    <div id="todayPage" class="page-view active">
+        <div class="date-section">
+            <label for="attendanceDate"><strong>ቀን ይምረጡ፡</strong></label>
+            <input type="date" id="attendanceDate" onchange="loadAttendance()">
+        </div>
+
+        <div class="form-group">
+            <input type="text" id="studentName" placeholder="አዲስ ተማሪ ወደ ዋናው መዝገብ ጨምር...">
+            <button onclick="addStudent()">ተማሪ ጨምር</button>
+        </div>
+
+        <h3 id="currentListTitle" style="color: #007bff; margin-bottom: 5px;"></h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ተ.ቁ</th>
+                    <th>የተማሪ ስም</th>
+                    <th>ተገኝቷል / አልተገኘም</th>
+                    <th>ድርጊት</th>
+                </tr>
+            </thead>
+            <tbody id="studentList"></tbody>
+        </table>
+    </div>
+
+    <!-- 2. የታሪክ ገጽ (በአውቶማቲክ ቆጣሪ ብቻ የሚጠፉ) -->
+    <div id="historyPage" class="page-view">
+        <h3>የተመዘገቡ ታሪኮች</h3>
+        <p style="font-size: 13px; color: #6c757d;">እያንዳንዱ መዝገብ ከተመዘገበበት ሰዓት ጀምሮ Exactly 24 ሰዓት ሲሞላው በራሱ ይጠፋል።</p>
+        
+        <div id="historyContainer"></div>
+    </div>
+</div>
+
+<script>
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+    document.getElementById('attendanceDate').valueAsDate = new Date();
+
+    function switchPage(page) {
+        document.querySelectorAll('.page-view').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+        if (page === 'today') {
+            document.getElementById('todayPage').classList.add('active');
+            document.getElementById('btnToday').classList.add('active');
+            loadAttendance();
+        } else {
+            document.getElementById('historyPage').classList.add('active');
+            document.getElementById('btnHistory').classList.add('active');
+            loadHistory();
+        }
+    }
+
+    function getSelectedDate() {
+        return document.getElementById('attendanceDate').value;
+    }
+
+    function getStudents() {
+        return JSON.parse(localStorage.getItem('students')) || [];
+    }
+
+    function getAllAttendance() {
+        return JSON.parse(localStorage.getItem('attendanceRecords')) || {};
+    }
+
+    function addStudent() {
+        let nameInput = document.getElementById('studentName');
+        let name = nameInput.value.trim();
+        if (name === "") return alert("እባክዎን የተማሪ ስም ያስገቡ!");
+
+        let students = getStudents();
+        students.push({ id: Date.now(), name: name });
+        localStorage.setItem('students', JSON.stringify(students));
+        nameInput.value = "";
+        loadAttendance();
+    }
+
+    function deleteStudent(id) {
+        if(confirm("በእርግጥ ይህንን ተማሪ ከዋናው መዝገብ ማጥፋት ይፈልጋሉ?")) {
+            let students = getStudents().filter(student => student.id !== id);
+            localStorage.setItem('students', JSON.stringify(students));
+            loadAttendance();
+        }
+    }
+
+    function toggleAttendance(studentId, isChecked) {
+        let dateKey = getSelectedDate();
+        if (!dateKey) return alert("እባክዎን ቀን ይምረጡ!");
+
+        let records = getAllAttendance();
+
+        if (!records[dateKey]) {
+            records[dateKey] = { 
+                createdTimestamp: Date.now(), 
+                data: {} 
+            };
+        }
+
+        records[dateKey].data[studentId] = isChecked;
+        localStorage.setItem('attendanceRecords', JSON.stringify(records));
+    }
+
+    function cleanExpiredRecordsByTime() {
+        let records = getAllAttendance();
+        let currentTime = Date.now();
+        let updated = false;
+
+        for (let dateKey in records) {
+            let recordTime = records[dateKey].createdTimestamp;
+            if (recordTime && (currentTime - recordTime >= TWENTY_FOUR_HOURS_MS)) {
+                delete records[dateKey];
+                updated = true;
+            }
+        }
+
+        if (updated) {
+            localStorage.setItem('attendanceRecords', JSON.stringify(records));
+        }
+    }
+
+    function loadAttendance() {
+        cleanExpiredRecordsByTime();
+        let students = getStudents();
+        let records = getAllAttendance();
+        let dateKey = getSelectedDate();
+        let tbody = document.getElementById('studentList');
+        let titleEl = document.getElementById('currentListTitle');
+
+        tbody.innerHTML = "";
+        titleEl.innerText = `የቀን ፡ ${dateKey} ሊስት`;
+
+        if (students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">ምንም የተመዘገበ ተማሪ የለም!</td></tr>';
+            return;
+        }
+
+        students.forEach((student, index) => {
+            let isPresent = false;
+            if (records[dateKey] && records[dateKey].data && records[dateKey].data[student.id] !== undefined) {
+                isPresent = records[dateKey].data[student.id];
+            }
+
+            let row = `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${student.name}</td>
+                    <td style="text-align: center;">
+                        <input type="checkbox" class="status-checkbox" 
+                            ${isPresent ? 'checked' : ''} 
+                            onchange="toggleAttendance(${student.id}, this.checked)">
+                    </td>
+                    <td>
+                        <button class="btn-delete" onclick="deleteStudent(${student.id})">አጥፋ</button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function loadHistory() {
+        cleanExpiredRecordsByTime();
+        let records = getAllAttendance();
+        let students = getStudents();
+        let container = document.getElementById('historyContainer');
+        container.innerHTML = "";
+
+        let dates = Object.keys(records).reverse();
+
+        if (dates.length === 0) {
+            container.innerHTML = "<p style='text-align:center; padding: 20px; color:#888;'>ምንም የተቀመጠ ታሪክ የለም (ወይም የ24 ሰዓት ጊዜያቸው አልፏል)።</p>";
+            return;
+        }
+
+        let currentTime = Date.now();
+
+        dates.forEach(date => {
+            let card = document.createElement('div');
+            card.className = 'history-card';
+            
+            let createdTimestamp = records[date].createdTimestamp || currentTime;
+            let remainingMs = TWENTY_FOUR_HOURS_MS - (currentTime - createdTimestamp);
+            
+            let remainingHours = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+            let remainingMins = Math.max(0, Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)));
+            let remainingSecs = Math.max(0, Math.floor((remainingMs % (1000 * 60)) / 1000));
+
+            let html = `
+                <div class="history-header">
+                    <h4>የቀን፡ ${date} ሊስት</h4>
+                    <span class="expire-tag">ቀሪ ሰዓት፡ ${remainingHours}:${remainingMins}:${remainingSecs}</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ተማሪ</th>
+                            <th>ሁኔታ</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            students.forEach(student => {
+                let status = (records[date].data && records[date].data[student.id]) 
+                    ? "<span style='color:green; font-weight:bold;'>ተገኝቷል</span>" 
+                    : "<span style='color:red;'>አልተገኘም</span>";
+                html += `<tr><td>${student.name}</td><td>${status}</td></tr>`;
+            });
+
+            html += `</tbody></table>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+    }
+
+    setInterval(() => {
+        cleanExpiredRecordsByTime();
+        if (document.getElementById('historyPage').classList.contains('active')) {
+            loadHistory();
+        }
+    }, 1000);
+
+    window.onload = function() {
+        loadAttendance();
+        cleanExpiredRecordsByTime();
+    };
+</script>
+
+</body>
+</html>
